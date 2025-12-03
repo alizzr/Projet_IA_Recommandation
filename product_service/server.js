@@ -1,8 +1,8 @@
 const express = require("express");
 const fs = require("fs");
 const cors = require("cors");
-const app = express();
 
+const app = express();
 app.use(cors());
 app.use(express.json());
 
@@ -14,11 +14,10 @@ try {
     console.error("Erreur chargement JSON :", err);
 }
 
-// ➤ ROUTE : GET /products (avec filtre facultatif)
+// ROUTE : GET /products
 app.get("/products", (req, res) => {
     let results = products;
 
-    // Si une catégorie est envoyée : http://localhost:5002/products?category=Laptop
     if (req.query.category) {
         results = results.filter(
             p => p.category.toLowerCase() === req.query.category.toLowerCase()
@@ -28,4 +27,5 @@ app.get("/products", (req, res) => {
     res.json(results);
 });
 
-app.listen(5002, () => console.log("API PRODUITS démarrée sur http://localhost:5002"));
+// 👉 IMPORTANT : on n'écoute PAS ici
+module.exports = app;
