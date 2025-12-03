@@ -4,21 +4,28 @@ from flask_cors import CORS
 import os
 
 app = Flask(__name__)
-CORS(app)
 
-# CONFIGURATION BASE DE DONNÉES (SQLite)
-# Le fichier users.db sera créé automatiquement
+# FIX: définir basedir AVANT toute utilisation
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'users.db')
+
+# --- CONFIG DB ---
+if os.environ.get("TESTING") == "1":
+    # Base temporaire pour pytest
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'
+else:
+    # Base normale
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'users.db')
+
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+CORS(app)
 
 db = SQLAlchemy(app)
 
-# --- MODÈLE (La structure de la table) ---
+# --- MODELES ---
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
-    password = db.Column(db.String(120), nullable=False) # En prod: Hacher le MDP !
+    password = db.Column(db.String(120), nullable=False)
     is_admin = db.Column(db.Boolean, default=False)
     cart = db.relationship('CartItem', backref='user', lazy=True)
 
@@ -40,13 +47,11 @@ class CartItem(db.Model):
     def to_dict(self):
         return {"product_id": self.product_id, "name": self.name, "price": self.price}
 
-# Création des tables au démarrage
+# Création des tables
 with app.app_context():
     db.create_all()
 
-# --- ROUTES CRUD UTILISATEUR (Comme demandé dans le PDF) ---
-
-# 1. CRÉER (Inscription)
+# --- ROUTES ---
 @app.route('/register', methods=['POST'])
 def register():
     data = request.json
@@ -58,7 +63,6 @@ def register():
     db.session.commit()
     return jsonify({"message": "Utilisateur créé", "user": new_user.to_dict()}), 201
 
-# 2. LIRE (Login / Récupérer info)
 @app.route('/login', methods=['POST'])
 def login():
     data = request.json
@@ -72,7 +76,6 @@ def get_user(id):
     user = User.query.get_or_404(id)
     return jsonify(user.to_dict())
 
-# 3. METTRE À JOUR
 @app.route('/users/<int:id>', methods=['PUT'])
 def update_user(id):
     user = User.query.get_or_404(id)
@@ -82,7 +85,6 @@ def update_user(id):
     db.session.commit()
     return jsonify(user.to_dict())
 
-# 4. SUPPRIMER
 @app.route('/users/<int:id>', methods=['DELETE'])
 def delete_user(id):
     user = User.query.get_or_404(id)
@@ -90,12 +92,11 @@ def delete_user(id):
     db.session.commit()
     return jsonify({"message": "Utilisateur supprimé"})
 
-# --- GESTION PANIER ---
 @app.route('/users/<int:user_id>/cart', methods=['POST'])
 def add_to_cart(user_id):
     data = request.json
     new_item = CartItem(
-        user_id=user_id, 
+        user_id=user_id,
         product_id=data['product_id'],
         name=data['name'],
         price=data['price']
