@@ -1,0 +1,45 @@
+version: '3.9'
+
+services:
+  product_service:
+    build: ./product_service
+    container_name: product_service
+    ports:
+      - "8001:5002"
+    networks:
+      - app-network
+
+  recommendation_service:
+    build: ./recommendation_service
+    container_name: recommendation_service
+    ports:
+      - "8002:5001"
+    networks:
+      - app-network
+    depends_on:
+      - product_service
+      - user_service
+
+  user_service:
+    build: ./user_service
+    container_name: user_service
+    ports:
+      - "8003:5003"
+    networks:
+      - app-network
+
+  frontend:
+    build: ./react-frontend
+    container_name: frontend
+    ports:
+      - "3000:80"
+    networks:
+      - app-network
+    depends_on:
+      - product_service
+      - recommendation_service
+      - user_service
+
+networks:
+  app-network:
+    driver: bridge
