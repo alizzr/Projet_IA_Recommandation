@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.pyc
+instance/
+*.db
+
+# Node
+node_modules/
+npm-debug.log
+yarn-debug.log
+coverage/
+
+# Jest
+coverage/
+.junit/
+
+# Pytest
+htmlcov/
+.coverage
+
+# VSCode
+.vscode/
