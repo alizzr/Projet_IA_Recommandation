@@ -1,31 +1,7 @@
-const express = require("express");
-const fs = require("fs");
-const cors = require("cors");
+const app = require("./app");
 
-const app = express();
-app.use(cors());
-app.use(express.json());
+const PORT = 5002;
 
-// Charger les produits
-let products = [];
-try {
-    products = JSON.parse(fs.readFileSync("products.json", "utf8"));
-} catch (err) {
-    console.error("Erreur chargement JSON :", err);
-}
-
-// ROUTE : GET /products
-app.get("/products", (req, res) => {
-    let results = products;
-
-    if (req.query.category) {
-        results = results.filter(
-            p => p.category.toLowerCase() === req.query.category.toLowerCase()
-        );
-    }
-
-    res.json(results);
+app.listen(PORT, "0.0.0.0", () => {
+    console.log(`API PRODUITS démarrée sur http://0.0.0.0:${PORT}`);
 });
-
-// 👉 IMPORTANT : on n'écoute PAS ici
-module.exports = app;
