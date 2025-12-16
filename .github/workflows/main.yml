@@ -1,22 +1,37 @@
-name: CI - Build & Test
+name: CI/CD Pipeline - DevOps
 
 on:
   push:
     branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
 
 jobs:
-  build-test:
+  test-and-build:
     runs-on: ubuntu-latest
+
     steps:
+    # 1. Récupération du code
     - name: Checkout code
       uses: actions/checkout@v4
+
+    # 2. Installation de Docker
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
+
+    # 3. Installation de Docker Compose
     - name: Install Docker Compose
       run: |
         sudo apt-get update
         sudo apt-get install -y docker-compose
-    - name: Build with Docker Compose
+
+    # 4. Construction des conteneurs (Build)
+    - name: Build Containers
       run: docker-compose build
+
+    # 5. TEST INTELLIGENCE & CI : Lancement des tests
+    # On lance un conteneur temporaire juste pour tester le user_service
+    - name: Run Unit Tests (Pytest)
+      run: |
+        # On lance le conteneur user_service et on exécute la commande pytest
+        docker-compose run --rm user_service pytest
+
+    # Si cette étape passe, "Integration Continue" est validée.
