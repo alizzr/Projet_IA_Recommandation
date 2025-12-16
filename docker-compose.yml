@@ -1,45 +1,54 @@
-version: '3.9'
-
 services:
-  product_service:
-    build: ./product_service
-    container_name: product_service
+  # --- API GATEWAY (Le Chef d'orchestre) ---
+  gateway:
+    image: nginx:alpine
+    volumes:
+      - ./api_gateway/nginx.conf:/etc/nginx/nginx.conf:ro
     ports:
-      - "8001:5002"
-    networks:
-      - app-network
-
-  recommendation_service:
-    build: ./recommendation_service
-    container_name: recommendation_service
-    ports:
-      - "8002:5001"
-    networks:
-      - app-network
+      - "80:80" # On passe sur le port standard 80
     depends_on:
-      - product_service
+      - front_user
+      - front_product
+      - front_ai
       - user_service
-
-  user_service:
-    build: ./user_service
-    container_name: user_service
-    ports:
-      - "8003:5003"
-    networks:
-      - app-network
-
-  frontend:
-    build: ./react-frontend
-    container_name: frontend
-    ports:
-      - "3000:80"
-    networks:
-      - app-network
-    depends_on:
       - product_service
       - recommendation_service
-      - user_service
+
+  # ==============================================
+  # 👤 DOMAINE UTILISATEUR (Vertical Slice)
+  # ==============================================
+  user_service: # BACKEND
+    build: ./user_service
+    volumes:
+      - ./user_service/instance:/app/instance
+    
+  front_user:   # FRONTEND (Login, Register, Profile)
+    build: ./user_service/frontend
+    environment:
+      - REACT_APP_API_URL=/api/users
+
+  # ==============================================
+  # 🛒 DOMAINE PRODUIT (Vertical Slice)
+  # ==============================================
+  product_service: # BACKEND
+    build: ./product_service
+
+  front_product:   # FRONTEND (Catalogue)
+    build: ./product_service/frontend
+    environment:
+      - REACT_APP_API_URL=/api/products
+
+  # ==============================================
+  # 🧠 DOMAINE INTELLIGENCE (Vertical Slice)
+  # ==============================================
+  recommendation_service: # BACKEND
+    build: ./recommendation_service
+
+  front_ai:        # FRONTEND (Formulaire IA)
+    build: ./recommendation_service/frontend
+    environment:
+      - REACT_APP_API_URL=/api/ai
 
 networks:
-  app-network:
+  default:
     driver: bridge
