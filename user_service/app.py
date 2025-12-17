@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
+from flask_migrate import Migrate
 import os
 from datetime import datetime
 
@@ -14,6 +15,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 CORS(app)
 
 db = SQLAlchemy(app)
+migrate = Migrate(app, db)
 
 # --- MODELES ---
 class User(db.Model):
@@ -80,8 +82,8 @@ class OrderItem(db.Model):
     def to_dict(self):
         return {"product_id": self.product_id, "name": self.name, "price": self.price}
 
-with app.app_context():
-    db.create_all()
+#with app.app_context():
+ #   db.create_all()
 
 # --- ROUTES ---
 
