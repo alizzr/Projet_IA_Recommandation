@@ -5,33 +5,51 @@ on:
     branches: [ "main" ]
 
 jobs:
-  test-and-build:
+  test-build-release:
     runs-on: ubuntu-latest
 
     steps:
-    # 1. Récupération du code
+    # 1. CI - Récupération du code
     - name: Checkout code
       uses: actions/checkout@v4
 
-    # 2. Installation de Docker
+    # 2. CI - Installation Docker
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
-    # 3. Installation de Docker Compose
+    # 3. CI - Login Docker Hub (On utilise ton user public et le secret pour le mdp)
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: alizr7
+        password: ${{ secrets.DOCKER_PASSWORD }}
+
+    # 4. CI - Installation Compose
     - name: Install Docker Compose
       run: |
         sudo apt-get update
         sudo apt-get install -y docker-compose
 
-    # 4. Construction des conteneurs (Build)
-    - name: Build Containers
-      run: docker-compose build
-
-    # 5. TEST INTELLIGENCE & CI : Lancement des tests
-    # On lance un conteneur temporaire juste pour tester le user_service
+    # 5. TEST INTELLIGENCE - Exécution des tests
     - name: Run Unit Tests (Pytest)
       run: |
-        # On lance le conteneur user_service et on exécute la commande pytest
         docker-compose run --rm user_service pytest
 
-    # Si cette étape passe, "Integration Continue" est validée.
+    # 6. BUILD - Construction des images
+    - name: Build Images
+      run: docker-compose build
+
+    # 7. RELEASE ORCHESTRATION - Envoi vers ton compte alizr7
+    - name: Push to Docker Hub
+      run: |
+        # User Service
+        docker tag projet_ia_recommandation_user_service alizr7/techshop-user:latest
+        docker push alizr7/techshop-user:latest
+        
+        # Product Service
+        docker tag projet_ia_recommandation_product_service alizr7/techshop-product:latest
+        docker push alizr7/techshop-product:latest
+
+        # Recommendation Service (IA)
+        docker tag projet_ia_recommandation_recommendation_service alizr7/techshop-reco:latest
+        docker push alizr7/techshop-reco:latest
