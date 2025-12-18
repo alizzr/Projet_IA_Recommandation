@@ -3,9 +3,11 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from flask_migrate import Migrate
 import os
+from flasgger import Swagger
 from datetime import datetime
 
 app = Flask(__name__)
+Swagger(app)
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 
@@ -22,12 +24,13 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(120), nullable=False)
+    is_admin = db.Column(db.Boolean, default=False)
     cart = db.relationship('CartItem', backref='user', lazy=True, cascade="all, delete-orphan")
     wishlist = db.relationship('WishlistItem', backref='user', lazy=True, cascade="all, delete-orphan")
     orders = db.relationship('Order', backref='user', lazy=True)
 
     def to_dict(self):
-        return {"id": self.id, "email": self.email}
+        return {"id": self.id, "email": self.email, "is_admin": self.is_admin}
 
 class CartItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -89,6 +92,36 @@ class OrderItem(db.Model):
 
 @app.route('/register', methods=['POST'])
 def register():
+    """
+    Créer un compte utilisateur
+    ---
+    tags:
+      - Utilisateur
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required:
+            - email
+            - password
+          properties:
+            email:
+              type: string
+              description: Email de l'utilisateur
+              example: test@example.com
+            password:
+              type: string
+              description: Mot de passe
+              example: 123456
+    responses:
+      201:
+        description: Utilisateur créé avec succès
+      400:
+        description: Email déjà utilisé
+    """
+    # --- LE CODE PYTHON RESTE LE MÊME ---
     data = request.json
     if User.query.filter_by(email=data['email']).first():
         return jsonify({"message": "Email déjà utilisé"}), 400
@@ -99,6 +132,33 @@ def register():
 
 @app.route('/login', methods=['POST'])
 def login():
+    """
+    Connecter un utilisateur
+    ---
+    tags:
+      - Utilisateur
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required:
+            - email
+            - password
+          properties:
+            email:
+              type: string
+              example: test@example.com
+            password:
+              type: string
+              example: 123456
+    responses:
+      200:
+        description: Connexion réussie (renvoie les infos user)
+      401:
+        description: Email ou mot de passe incorrect
+    """
     data = request.json
     user = User.query.filter_by(email=data['email'], password=data['password']).first()
     if user: return jsonify(user.to_dict())
@@ -113,6 +173,43 @@ def get_cart(user_id):
 
 @app.route('/<int:user_id>/cart', methods=['POST'])
 def add_to_cart(user_id):
+    """
+    Ajouter un produit au panier
+    ---
+    tags:
+      - Panier
+    parameters:
+      - name: user_id
+        in: path
+        type: integer
+        required: true
+        description: ID de l'utilisateur
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required:
+            - product_id
+            - name
+            - price
+          properties:
+            product_id:
+              type: integer
+              example: 101
+            name:
+              type: string
+              example: "Super Smartphone"
+            price:
+              type: number
+              example: 599.99
+            image:
+              type: string
+              example: "http://image.url"
+    responses:
+      200:
+        description: Produit ajouté au panier
+    """
     data = request.json
     existing = CartItem.query.filter_by(user_id=user_id, product_id=data['product_id']).first()
     if existing:
@@ -169,6 +266,42 @@ def create_order(user_id):
         db.session.delete(item)
     db.session.commit()
     return jsonify({"message": "Succès", "order": new_order.to_dict()}), 201
+
+# --- ADMIN ROUTES ---
+@app.route('/admin/users', methods=['GET'])
+def get_all_users():
+    users = User.query.all()
+    return jsonify([u.to_dict() for u in users])
+
+@app.route('/admin/users/<int:user_id>', methods=['PUT'])
+def update_user(user_id):
+    user = User.query.get_or_404(user_id)
+    data = request.json
+    if 'email' in data: user.email = data['email']
+    if 'password' in data: user.password = data['password']
+    if 'is_admin' in data: user.is_admin = data['is_admin']
+    db.session.commit()
+    return jsonify(user.to_dict())
+
+@app.route('/admin/users/<int:user_id>', methods=['DELETE'])
+def delete_user(user_id):
+    user = User.query.get_or_404(user_id)
+    db.session.delete(user)
+    db.session.commit()
+    return jsonify({"message": "Utilisateur supprimé"})
+
+@app.route('/admin/orders', methods=['GET'])
+def get_all_orders():
+    orders = Order.query.all()
+    return jsonify([o.to_dict() for o in orders])
+
+@app.route('/admin/orders/<int:order_id>/status', methods=['PUT'])
+def update_order_status(order_id):
+    order = Order.query.get_or_404(order_id)
+    data = request.json
+    if 'status' in data: order.status = data['status']
+    db.session.commit()
+    return jsonify(order.to_dict())
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5003)

@@ -1,36 +1,31 @@
-# TODO: Fix Cart and Favorites Empty Issue in TechShop Client Space
+# Admin Space Implementation Plan
 
-## Summary
-The user reports that the cart and favorites (wishlist) in the TechShop client space remain empty even after adding products. This is a bug preventing items from being saved or displayed properly.
+## Information Gathered
+- User model in user_service lacks is_admin field; needs to be added for role-based access.
+- Product service has AdminModal component but no backend admin routes for product CRUD.
+- User service needs admin routes for managing users and orders.
+- Frontends require admin interfaces for managing products, users, and orders.
+- Authentication is required to protect admin routes and ensure only admins can access.
 
-## Root Cause Analysis
-- **CartModal Bug**: The `onRemove` function was passing the array index (`i`) instead of the `productId`, causing removal failures.
-- **Stale Data Issue**: Cart and wishlist data were not refreshed when opening modals, leading to outdated empty displays.
-- **Incomplete Checkout**: The checkout process was not integrated with the backend order creation API.
+## Plan
+- [x] Add is_admin field to User model in user_service/app.py
+- [x] Create admin routes in product_service/app.js for product CRUD (GET, POST, PUT, DELETE /admin/products)
+- [x] Create admin routes in user_service/app.py for managing users (GET /admin/users, PUT /admin/users/<id>, DELETE /admin/users/<id>)
+- [x] Create admin routes in user_service/app.py for managing orders (GET /admin/orders, PUT /admin/orders/<id>/status)
+- [x] Update product_service/frontend to integrate AdminModal for product management
+- [x] Create admin components in user_service/frontend for user and order management
+- [x] Implement authentication middleware to check is_admin for admin routes
+- [x] Update migrations to include is_admin field
 
-## Completed Fixes
-- [x] Fixed CartModal to use `p.id` for `key` and `onRemove` instead of index `i`
-- [x] Added `loadData(user.id)` calls when opening cart and wishlist modals to refresh data
-- [x] Added `createOrder` function to `api.js` for backend order creation
-- [x] Updated `handleCheckoutSubmit` to use `createOrder` API and handle errors properly
+## Dependent Files to be Edited
+- user_service/app.py
+- product_service/app.js
+- user_service/frontend/src/components/ (new admin components)
+- product_service/frontend/src/App.jsx (integrate AdminModal)
+- user_service/migrations/versions/ (new migration for is_admin)
 
-## Testing Steps
-1. Start the services using Docker Compose
-2. Navigate to the product service frontend
-3. Login or register a user
-4. Add products to cart and wishlist
-5. Navigate to user service (/account)
-6. Verify cart and wishlist display added items
-7. Test removing items from cart and wishlist
-8. Test checkout process
-
-## Files Modified
-- `user_service/frontend/src/components/CartModal.jsx`: Fixed onRemove to use productId
-- `user_service/frontend/src/App.jsx`: Added loadData on modal open, updated checkout
-- `user_service/frontend/src/api.js`: Added createOrder function
-
-## Notes
-- The backend routes and database models appear correct
-- API gateway routing is properly configured
-- Product IDs are correctly handled (product_id vs id)
-- LocalStorage sharing works across same-origin frontends
+## Followup Steps
+- [ ] Run database migrations to apply is_admin changes
+- [ ] Test admin routes and frontend components
+- [ ] Ensure proper authentication and authorization
+- [ ] Verify admin can manage products, users, and orders

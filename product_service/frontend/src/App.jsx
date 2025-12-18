@@ -4,6 +4,7 @@ import ProductCard from "./components/ProductCard";
 import ProductDetailsModal from "./components/ProductDetailsModal";
 import { fetchProducts, postCart, getCart, getWishlist, postWishlist, deleteFromWishlist } from "./api";
 import WishlistModal from "./components/WishlistModal";
+import AdminModal from "./components/AdminModal";
 
 export default function App() {
   const [products, setProducts] = useState([]);
@@ -120,7 +121,7 @@ export default function App() {
 
   return (
     <div className="bg-gray-100 min-h-screen font-sans">
-      <Navbar 
+      <Navbar
         cartCount={cartCount}
         wishlistCount={wishlist.length}
         user={user}
@@ -128,6 +129,7 @@ export default function App() {
         onOpenWishlist={() => setWishlistOpen(true)}
         onSearch={handleSearch}
         onLogout={() => { localStorage.removeItem("techshop_user"); window.location.reload(); }}
+        onOpenAdmin={() => setAdminOpen(true)}
       />
       <div className="container mx-auto px-4 py-6 flex gap-8">
         <aside className="w-64 flex-shrink-0 hidden lg:block">
@@ -149,6 +151,7 @@ export default function App() {
       </div>
       <ProductDetailsModal open={productDetailsOpen} product={selectedProduct} onClose={() => setProductDetailsOpen(false)} onAddToCart={() => handleAddToCart(selectedProduct)} />
       <WishlistModal open={wishlistOpen} onClose={() => setWishlistOpen(false)} wishlist={wishlist} onRemove={(id) => toggleWishlist({id: id})} onAddToCart={handleAddToCart} />
+      <AdminModal open={adminOpen} onClose={() => setAdminOpen(false)} />
     </div>
   );
 }

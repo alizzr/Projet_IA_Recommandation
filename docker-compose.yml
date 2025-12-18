@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   # --- API GATEWAY (Le Chef d'orchestre) ---
   gateway:
@@ -5,7 +7,7 @@ services:
     volumes:
       - ./api_gateway/nginx.conf:/etc/nginx/nginx.conf:ro
     ports:
-      - "80:80" # On passe sur le port standard 80
+      - "80:80"
     depends_on:
       - front_user
       - front_product
@@ -15,40 +17,101 @@ services:
       - recommendation_service
 
   # ==============================================
-  # 👤 DOMAINE UTILISATEUR (Vertical Slice)
+  # 👤 DOMAINE UTILISATEUR
   # ==============================================
-  user_service: # BACKEND
+  user_service:
     build: ./user_service
     volumes:
       - ./user_service/instance:/app/instance
+    ports:           # <--- AJOUTE ÇA
+      - "5003:5003"  
     
-  front_user:   # FRONTEND (Login, Register, Profile)
+  front_user:
     build: ./user_service/frontend
     environment:
       - REACT_APP_API_URL=/api/users
 
   # ==============================================
-  # 🛒 DOMAINE PRODUIT (Vertical Slice)
+  # 🛒 DOMAINE PRODUIT
   # ==============================================
-  product_service: # BACKEND
+  product_service:
     build: ./product_service
 
-  front_product:   # FRONTEND (Catalogue)
+  front_product:
     build: ./product_service/frontend
     environment:
       - REACT_APP_API_URL=/api/products
 
   # ==============================================
-  # 🧠 DOMAINE INTELLIGENCE (Vertical Slice)
+  # 🧠 DOMAINE INTELLIGENCE
   # ==============================================
-  recommendation_service: # BACKEND
+  recommendation_service:
     build: ./recommendation_service
 
-  front_ai:        # FRONTEND (Formulaire IA)
+  front_ai:
     build: ./recommendation_service/frontend
     environment:
       - REACT_APP_API_URL=/api/ai
 
+  # ==============================================
+  # 🚀 CONTINUOUS DELIVERY AGENT
+  # ==============================================
+  watchtower:
+    image: containrrr/watchtower
+    container_name: watchtower
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: --interval 30
+    restart: unless-stopped
+
+  # ==============================================
+  # 📊 MONITORING STACK
+  # ==============================================
+  
+  # 1. L'Espion (Collecte les métriques)
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: cadvisor
+    ports:
+      - "8081:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    devices:
+      - /dev/kmsg
+
+  # 2. Le Cerveau (Stocke les données)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    depends_on:
+      - cadvisor
+
+  # 3. L'Écran (Affiche les graphiques)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+
+# --- RÉSEAUX ---
 networks:
   default:
     driver: bridge
+
+# --- VOLUMES (C'est ça qu'il manquait !) ---
+volumes:
+  grafana_data:

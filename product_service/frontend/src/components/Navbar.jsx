@@ -1,6 +1,6 @@
 import React from "react";
 
-export default function Navbar({ cartCount, wishlistCount, user, onOpenCart, onOpenWishlist, onSearch, onLogout }) {
+export default function Navbar({ cartCount, wishlistCount, user, onOpenCart, onOpenWishlist, onSearch, onLogout, onOpenAdmin }) {
   return (
     <nav className="bg-yellow-500 text-black p-4 shadow-lg">
       <div className="container mx-auto flex justify-between items-center">
