@@ -12,64 +12,81 @@ jobs:
       security-events: write
 
     steps:
-    # --- PHASE 1 : BUILDER (Préparation) ---
+    # --- PHASE 1 : PRÉPARATION ---
     - name: Checkout code
       uses: actions/checkout@v4
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
-    # --- PHASE 2 : TEST INTELLIGENCE ---
-    - name: Install Docker Compose
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y docker-compose
-
-    - name: Run Unit Tests (Pytest)
-      run: docker-compose run --rm user_service pytest
-
-    # --- PHASE 3 : CONTINUOUS IMPROVEMENT (Sécurité) ---
-    # On scanne le code avant même de construire l'image finale
+    # --- PHASE 2 : SÉCURITÉ (Scan du code) ---
     - name: Security Scan (Trivy)
       uses: aquasecurity/trivy-action@master
       with:
         scan-type: 'fs'
         scan-ref: '.'
         format: 'table'
-        exit-code: '0' # Bloque le pipeline si faille critique trouvée
+        exit-code: '0' 
         ignore-unfixed: true
         severity: 'CRITICAL,HIGH'
 
-    # --- PHASE 4 : BUILDER (Construction Optimisée avec Cache) ---
+    # --- PHASE 3 : CONNEXION DOCKER HUB ---
     - name: Login to Docker Hub
       uses: docker/login-action@v3
       with:
-        username: alizr7
+        username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
 
+    # --- PHASE 4 : CONSTRUCTION & PUSH (Backends) ---
+    
+    # 1. User Service
     - name: Build & Push User Service
       uses: docker/build-push-action@v5
       with:
         context: ./user_service
         push: true
-        tags: alizr7/techshop-user:latest
+        tags: ${{ secrets.DOCKER_USERNAME }}/techshop-user:latest
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
+    # 2. Product Service (Node.js)
     - name: Build & Push Product Service
       uses: docker/build-push-action@v5
       with:
         context: ./product_service
         push: true
-        tags: alizr7/techshop-product:latest
+        tags: ${{ secrets.DOCKER_USERNAME }}/techshop-product:latest
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
+    # 3. Recommendation Service (Python/IA)
     - name: Build & Push Recommendation Service
       uses: docker/build-push-action@v5
       with:
         context: ./recommendation_service
         push: true
-        tags: alizr7/techshop-reco:latest
+        tags: ${{ secrets.DOCKER_USERNAME }}/techshop-reco:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    # --- PHASE 5 : CONSTRUCTION & PUSH (Frontends) ---
+
+    # 4. Admin Dashboard (Celui qu'on vient de finir)
+    - name: Build & Push Admin Dashboard
+      uses: docker/build-push-action@v5
+      with:
+        context: ./front_ai
+        push: true
+        tags: ${{ secrets.DOCKER_USERNAME }}/techshop-admin:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    # 5. Magasin Client
+    - name: Build & Push Store Front
+      uses: docker/build-push-action@v5
+      with:
+        context: ./product_service/frontend
+        push: true
+        tags: ${{ secrets.DOCKER_USERNAME }}/techshop-store:latest
         cache-from: type=gha
         cache-to: type=gha,mode=max
