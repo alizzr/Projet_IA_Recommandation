@@ -1,157 +1,258 @@
 import React, { useState, useEffect } from "react";
 import Navbar from "./components/Navbar";
-import ProductCard from "./components/ProductCard";
-import ProductDetailsModal from "./components/ProductDetailsModal";
-import { fetchProducts, postCart, getCart, getWishlist, postWishlist, deleteFromWishlist } from "./api";
+import ProductRow from "./components/ProductRow"; 
+import AuthModal from "./components/AuthModal";
+import CartModal from "./components/CartModal";
 import WishlistModal from "./components/WishlistModal";
-import AdminModal from "./components/AdminModal";
+import ProductDetailsModal from "./components/ProductDetailsModal";
+
+// --- URLS API ---
+const API_PRODUCT     = "/api/products";      
+const API_RECO        = "/api/ai";            
+const API_INTERACTION = "/api/interactions";  
 
 export default function App() {
-  const [products, setProducts] = useState([]);
-  const [allProducts, setAllProducts] = useState([]);
   const [user, setUser] = useState(null);
-  
-  const [selectedCategory, setSelectedCategory] = useState("Toutes");
-  const [priceMax, setPriceMax] = useState(5000);
-  const [cartCount, setCartCount] = useState(0);
+  const [cart, setCart] = useState([]);
   const [wishlist, setWishlist] = useState([]);
+  
+  // viewData = Ce qu'on affiche (Blocs Amazon OU Résultats de recherche)
+  const [viewData, setViewData] = useState({ type: 'standard', content: [] }); 
+  
+  // allProducts = Mémoire cache de TOUS les produits pour la recherche
+  const [allProducts, setAllProducts] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [adminOpen, setAdminOpen] = useState(false);
+
+  const [authOpen, setAuthOpen] = useState(false);
+  const [cartOpen, setCartOpen] = useState(false);
   const [wishlistOpen, setWishlistOpen] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState(null);
-  const [productDetailsOpen, setProductDetailsOpen] = useState(false);
-  const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
 
+  // --- CHARGEMENT ---
   useEffect(() => {
-    const savedUser = localStorage.getItem("techshop_user");
-    let currentUser = null;
-    if (savedUser) {
-        try {
-            currentUser = JSON.parse(savedUser);
-            // Vérification de sécurité
-            if (currentUser && currentUser.id) {
-                setUser(currentUser);
-            }
-        } catch (e) { console.error("Erreur parsing user", e); }
-    }
-    
-    loadProducts();
+    let isMounted = true; 
+    const safetyTimer = setTimeout(() => { if (isMounted) setLoading(false); }, 1500);
 
-    if (currentUser && currentUser.id) {
-        getCart(currentUser.id).then(items => setCartCount(items.length));
-        getWishlist(currentUser.id).then(items => setWishlist(items));
-    } else {
-        const localCart = JSON.parse(localStorage.getItem("cart")) || [];
-        setCartCount(localCart.length);
-        setWishlist(JSON.parse(localStorage.getItem("wishlist")) || []);
-    }
-  }, []);
+    const init = async () => {
+        // 1. On charge TOUS les produits en arrière-plan pour la barre de recherche
+        await fetchAllProducts();
 
-  // Filtrage par catégorie
-  useEffect(() => {
-    let filtered = allProducts;
-    if (selectedCategory !== "Toutes") {
-      filtered = filtered.filter(p => p.category === selectedCategory);
-    }
-    setProducts(filtered);
-  }, [selectedCategory, allProducts]);
+        // 2. On gère l'utilisateur
+        const savedUser = localStorage.getItem("techshop_user");
+        if (savedUser) {
+            try {
+                const u = JSON.parse(savedUser);
+                if (u && u.id) {
+                    if (isMounted) setUser(u);
+                    await loadUserData(u.id).catch(e => console.error(e));
+                    fetchAmazonBlocks(u, [], []); 
+                } else { await fetchAmazonBlocks(null, [], []); }
+            } catch (e) { await fetchAmazonBlocks(null, [], []); }
+        } else {
+            // Pas d'user ? On charge quand même les blocs Amazon génériques
+            await fetchAmazonBlocks({ id: null, age: 25, gender: 'Mixte' }, [], []);
+        }
+        if (isMounted) setLoading(false);
+    };
+    init();
+    return () => { isMounted = false; clearTimeout(safetyTimer); };
+  }, []); 
 
-  const loadProducts = async () => {
+  // --- LOGIQUE DONNÉES ---
+  const fetchAllProducts = async () => {
+      try {
+          const res = await fetch(API_PRODUCT);
+          if (res.ok) {
+              const data = await res.json();
+              setAllProducts(data);
+              // Extraction des catégories UNIQUES
+              const uniqueCats = [...new Set(data.map(p => p.category))];
+              setCategories(uniqueCats);
+          }
+      } catch (e) { console.error(e); }
+  };
+
+  const fetchAmazonBlocks = async (currentUser, c, w) => {
+      try {
+          const profile = currentUser ? { age: currentUser.age, gender: currentUser.gender } : { age: 25, gender: 'Mixte' };
+          const response = await fetch(`${API_RECO}/get_amazon_blocks`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                  user_id: currentUser ? currentUser.id : null,
+                  profile: profile,
+                  interactions: { cart: c || [], wishlist: w || [] },
+                  context: "home" 
+              })
+          });
+          if (response.ok) {
+              const blocks = await response.json();
+              if (Array.isArray(blocks) && blocks.length > 0) setViewData({ type: 'amazon', content: blocks });
+          }
+      } catch (e) { console.error(e); }
+  };
+
+  const loadUserData = async (userId) => {
     try {
-      const data = await fetchProducts();
-      setProducts(data);
-      setAllProducts(data);
+        const [cRes, wRes] = await Promise.all([
+            fetch(`${API_INTERACTION}/cart/${userId}`),
+            fetch(`${API_INTERACTION}/wishlist/${userId}`)
+        ]);
+        if(cRes.ok) setCart(await cRes.json() || []);
+        if(wRes.ok) setWishlist(await wRes.json() || []);
     } catch (e) { console.error(e); }
   };
 
-  const getProductId = (product) => product.id || product._id || product.product_id;
+  // --- MOTEUR DE RECHERCHE & FILTRES ---
+  const handleSearch = (term) => {
+      if (!term || term.trim() === "") {
+          // Si recherche vide, on remet l'accueil Amazon
+          fetchAmazonBlocks(user, cart, wishlist);
+          return;
+      }
+      
+      const lowerTerm = term.toLowerCase();
+      const results = allProducts.filter(p => 
+          p.name.toLowerCase().includes(lowerTerm) || 
+          p.category.toLowerCase().includes(lowerTerm)
+      );
 
-  const toggleWishlist = async (product) => {
-    const pid = getProductId(product);
-    const exists = wishlist.some(p => getProductId(p) === pid);
-    let newWishlist;
-    if (exists) {
-        newWishlist = wishlist.filter(p => getProductId(p) !== pid);
-    } else {
-        newWishlist = [...wishlist, product];
-    }
-    setWishlist(newWishlist);
-
-    if (user && user.id) {
-        if (exists) await deleteFromWishlist(user.id, pid);
-        else await postWishlist(user.id, product);
-    } else {
-        localStorage.setItem("wishlist", JSON.stringify(newWishlist));
-    }
+      setViewData({
+          type: 'search',
+          content: [{ title: `Résultats pour "${term}" (${results.length})`, products: results }]
+      });
   };
 
-  // --- CORRECTION PRINCIPALE ICI ---
-  const handleAddToCart = async (product) => {
-    console.log("Tentative ajout panier :", product);
-
-    // 1. Si connecté -> Envoi vers Base de Données
-    if (user && user.id) {
-        try {
-            await postCart(user.id, product); 
-            // On incrémente SEULEMENT si l'appel API a réussi
-            setCartCount(prev => prev + 1);
-            alert("Produit ajouté à votre compte !"); 
-        } catch (e) {
-            console.error("Erreur ajout panier :", e);
-            alert("Erreur : Impossible d'ajouter au panier. Vérifiez que vous êtes bien connecté.");
-        }
-    } 
-    // 2. Si Invité -> LocalStorage
-    else {
-        const currentCart = JSON.parse(localStorage.getItem("cart")) || [];
-        const nextCart = [...currentCart, product];
-        localStorage.setItem("cart", JSON.stringify(nextCart));
-        setCartCount(prev => prev + 1);
-        
-        if(window.confirm("Produit ajouté en local. Connectez-vous pour le sauvegarder !")) {
-             window.location.href="/account";
-        }
-    }
+  const handleCategoryClick = (category) => {
+      const results = allProducts.filter(p => p.category === category);
+      setViewData({
+          type: 'category',
+          content: [{ title: `Rayon : ${category}`, products: results }]
+      });
   };
 
-  const handleSearch = (q) => {
-    if(!q) return setProducts(allProducts);
-    setProducts(allProducts.filter(p => p.name.toLowerCase().includes(q.toLowerCase())));
+  const handleSpecialFilter = (type) => {
+      let results = [];
+      let title = "";
+
+      if (type === 'best_sellers') {
+          results = [...allProducts].sort((a, b) => b.rating - a.rating).slice(0, 20);
+          title = "Meilleures Ventes ⭐";
+      } else if (type === 'new') {
+          results = allProducts.slice(0, 10); // Simulation nouveautés
+          title = "Dernières Nouveautés 🆕";
+      } else if (type === 'flash') {
+          results = allProducts.filter(p => p.price < 50);
+          title = "Ventes Flash & Petits Prix ⚡";
+      }
+
+      setViewData({ type: 'filter', content: [{ title: title, products: results }] });
   };
 
-  const categories = ["Toutes", ...new Set(allProducts.map(p => p.category))];
+  // --- ACTIONS PANIER/FAVORIS ---
+  const addToCart = (product) => {
+     if(!user) { setAuthOpen(true); return; }
+     const newCart = [...cart, {...product, product_id: product.id}];
+     setCart(newCart);
+     fetch(`${API_INTERACTION}/cart/${user.id}`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({id:product.id, name:product.name, price:product.price, image:product.image}) }).catch(e=>console.error(e));
+     if(viewData.type === 'amazon') fetchAmazonBlocks(user, newCart, wishlist);
+  };
+  
+  const addToWishlist = (product) => {
+      if(!user) { setAuthOpen(true); return; }
+      if (wishlist.some(item => item.product_id === product.id)) return;
+      const newWish = [...wishlist, {...product, product_id: product.id}];
+      setWishlist(newWish);
+      fetch(`${API_INTERACTION}/wishlist/${user.id}`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({id:product.id, name:product.name, price:product.price, image:product.image}) }).catch(e=>console.error(e));
+      if(viewData.type === 'amazon') fetchAmazonBlocks(user, cart, newWish);
+  };
+
+  const removeFromCart = (pid) => {
+      const newCart = cart.filter(i => i.product_id !== pid);
+      setCart(newCart);
+      if(user) fetch(`${API_INTERACTION}/cart/${user.id}/${pid}`, { method: 'DELETE' }).catch(e=>console.error(e));
+  };
+  
+  const removeFromWishlist = (pid) => {
+      const newWish = wishlist.filter(i => i.product_id !== pid);
+      setWishlist(newWish);
+      if(user) fetch(`${API_INTERACTION}/wishlist/${user.id}/${pid}`, { method: 'DELETE' }).catch(e=>console.error(e));
+  };
+
+  const handleCheckout = async () => {
+      if(user) {
+          await fetch(`${API_INTERACTION}/orders/${user.id}`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: "{}" });
+          alert("Commande validée !");
+          setCart([]); setCartOpen(false);
+      }
+  };
+
+  const handleLoginSuccess = (response) => {
+    const u = response.user || response;
+    setUser(u);
+    localStorage.setItem("techshop_user", JSON.stringify(u));
+    loadUserData(u.id);
+    fetchAmazonBlocks(u, [], []);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("techshop_user");
+    setUser(null); setCart([]); setWishlist([]);
+    window.location.reload(); // Reset propre
+  };
+
+  if (loading) return <div className="flex h-screen items-center justify-center font-bold text-xl text-[#232f3e]">Chargement...</div>;
 
   return (
-    <div className="bg-gray-100 min-h-screen font-sans">
-      <Navbar
-        cartCount={cartCount}
-        wishlistCount={wishlist.length}
-        user={user}
-        onOpenCart={() => window.location.href = "/account"}
-        onOpenWishlist={() => setWishlistOpen(true)}
-        onSearch={handleSearch}
-        onLogout={() => { localStorage.removeItem("techshop_user"); window.location.reload(); }}
-        onOpenAdmin={() => setAdminOpen(true)}
+    <div className="min-h-screen bg-[#EAEDED] pb-20 font-sans text-gray-800">
+      
+      {/* ON PASSE LES FONCTIONS AU NAVBAR */}
+      <Navbar 
+        cartCount={cart.length} 
+        wishlistCount={wishlist.length} 
+        user={user} 
+        categories={categories} // Vos VRAIES catégories
+        onSearch={handleSearch} // La fonction de recherche
+        onCategoryClick={handleCategoryClick}
+        onSpecialFilter={handleSpecialFilter}
+        onOpenCart={() => setCartOpen(true)} 
+        onOpenWishlist={() => setWishlistOpen(true)} 
+        onLogout={handleLogout} 
+        onLogin={() => setAuthOpen(true)} 
       />
-      <div className="container mx-auto px-4 py-6 flex gap-8">
-        <aside className="w-64 flex-shrink-0 hidden lg:block">
-            <div className="bg-white p-4 rounded shadow-sm border border-gray-200">
-                <h3 className="font-bold text-lg mb-4">Catégories</h3>
-                <ul className="space-y-2">{categories.map(cat => <li key={cat} className="cursor-pointer hover:text-yellow-600" onClick={() => setSelectedCategory(cat)}>{cat}</li>)}</ul>
-                <hr className="my-4"/>
-                <h3 className="font-bold text-lg mb-2">Prix Max: {priceMax}€</h3>
-                <input type="range" min="0" max="5000" step="100" value={priceMax} onChange={(e) => setPriceMax(Number(e.target.value))} className="w-full accent-yellow-500" />
+      
+      <div className="h-6"></div>
+
+      <main className="max-w-[1600px] mx-auto px-4">
+        {/* BOUTON RETOUR ACCUEIL (Si on est en mode recherche) */}
+        {viewData.type !== 'amazon' && (
+            <button onClick={() => fetchAmazonBlocks(user, cart, wishlist)} className="mb-4 text-blue-600 hover:underline">
+                ← Retour à l'accueil personnalisé
+            </button>
+        )}
+
+        {viewData.content && viewData.content.length > 0 ? (
+            viewData.content.map((block, idx) => (
+                <ProductRow 
+                    key={idx} 
+                    title={block.title} 
+                    products={viewData.type === 'standard' && idx === 0 ? viewData.content : block.products} 
+                    onAddToCart={addToCart} 
+                    onAddToWishlist={addToWishlist} 
+                />
+            ))
+        ) : (
+            <div className="text-center py-20 bg-white rounded shadow-sm">
+                <p className="text-gray-500 text-xl">Aucun produit trouvé 😔</p>
+                <button onClick={() => fetchAmazonBlocks(user, cart, wishlist)} className="mt-4 bg-[#ffd814] px-4 py-2 rounded">Retour accueil</button>
             </div>
-        </aside>
-        <main className="flex-1">
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
-                {products.map((p, i) => (
-                    <ProductCard key={getProductId(p) || i} product={p} onAddToCart={() => handleAddToCart(p)} onViewDetails={() => { setSelectedProduct(p); setProductDetailsOpen(true); }} onAddToWishlist={() => toggleWishlist(p)} isInWishlist={wishlist.some(w => getProductId(w) === getProductId(p))} />
-                ))}
-            </div>
-        </main>
-      </div>
-      <ProductDetailsModal open={productDetailsOpen} product={selectedProduct} onClose={() => setProductDetailsOpen(false)} onAddToCart={() => handleAddToCart(selectedProduct)} />
-      <WishlistModal open={wishlistOpen} onClose={() => setWishlistOpen(false)} wishlist={wishlist} onRemove={(id) => toggleWishlist({id: id})} onAddToCart={handleAddToCart} />
-      <AdminModal open={adminOpen} onClose={() => setAdminOpen(false)} />
+        )}
+      </main>
+
+      <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} onLoginSuccess={handleLoginSuccess} />
+      <CartModal open={cartOpen} onClose={() => setCartOpen(false)} cart={cart} onCheckout={handleCheckout} onRemove={removeFromCart} />
+      <WishlistModal open={wishlistOpen} onClose={() => setWishlistOpen(false)} wishlist={wishlist} onRemove={removeFromWishlist} onAddToCart={addToCart} />
     </div>
   );
 }
