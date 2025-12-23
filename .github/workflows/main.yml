@@ -75,7 +75,7 @@ jobs:
     - name: Build & Push Admin Dashboard
       uses: docker/build-push-action@v5
       with:
-        context: ./front_ai
+        context: ./recommendation_service/frontend
         push: true
         tags: ${{ secrets.DOCKER_USERNAME }}/techshop-admin:latest
         cache-from: type=gha
