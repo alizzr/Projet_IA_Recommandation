@@ -1,123 +1,133 @@
 import React, { useState } from "react";
-// On importe les fonctions centralisées pour éviter les erreurs de port
-import { loginUser, registerUser } from "../api";
+import { loginUser, registerUser } from "../api"; // Assurez-vous que l'import pointe bien vers votre api.js
 
 export default function AuthModal({ open, onClose, onLoginSuccess }) {
-  const [mode, setMode] = useState("login");
+  const [isRegister, setIsRegister] = useState(false);
   const [email, setEmail] = useState("");
-  const [name, setName] = useState(""); // Optionnel selon votre backend
-  const [pass, setPass] = useState("");
-  const [confirmPass, setConfirmPass] = useState("");
+  const [password, setPassword] = useState("");
+  
+  // NOUVEAUX CHAMPS
+  const [age, setAge] = useState("");
+  const [gender, setGender] = useState("Mixte");
+
   const [error, setError] = useState("");
 
   if (!open) return null;
 
   const handleSubmit = async (e) => {
-    e.preventDefault(); // Empêche le rechargement de page
+    e.preventDefault();
     setError("");
 
-    if (mode === "register" && pass !== confirmPass) {
-      setError("Les mots de passe ne correspondent pas.");
-      return;
-    }
-
     try {
-      let data;
-      // On utilise api.js qui pointe vers le bon port (8003)
-      if (mode === "login") {
-        data = await loginUser({ email, password: pass });
+      let res;
+      if (isRegister) {
+        // Envoi avec Age et Genre
+        res = await registerUser({ email, password, age: parseInt(age), gender });
       } else {
-        data = await registerUser({ email, password: pass });
+        res = await loginUser({ email, password });
       }
-
-      // Si on arrive ici, c'est que api.js n'a pas levé d'erreur
-      onLoginSuccess(data); // data contient l'objet user complet avec ID
-      onClose();
       
+      onLoginSuccess(res);
+      onClose();
     } catch (err) {
-      console.error("Erreur Auth", err);
-      // Affiche le message d'erreur renvoyé par api.js
-      setError(err.message || "Impossible de se connecter au serveur.");
+      console.error(err);
+      setError(err.message || "Une erreur est survenue");
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="bg-white rounded-lg w-96 p-6 shadow-2xl">
-        <h3 className="text-xl font-bold mb-4 text-center">
-          {mode === "login" ? "Connexion" : "Inscription"}
-        </h3>
-
-        {error && (
-          <div className="bg-red-100 text-red-700 p-2 rounded mb-3 text-sm text-center">
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit}>
-          {mode === "register" && (
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Nom complet (Optionnel)"
-              className="w-full border p-2 rounded mb-3"
-            />
-          )}
-
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="Email"
-            required
-            className="w-full border p-2 rounded mb-3"
-          />
-
-          <input
-            value={pass}
-            onChange={(e) => setPass(e.target.value)}
-            placeholder="Mot de passe"
-            type="password"
-            required
-            className="w-full border p-2 rounded mb-3"
-          />
-
-          {mode === "register" && (
-            <input
-              value={confirmPass}
-              onChange={(e) => setConfirmPass(e.target.value)}
-              placeholder="Confirmer le mot de passe"
-              type="password"
-              required
-              className="w-full border p-2 rounded mb-3"
-            />
-          )}
-
-          <button
-            type="submit"
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded w-full font-bold transition-colors"
-          >
-            {mode === "login" ? "Se connecter" : "Créer mon compte"}
-          </button>
-        </form>
-
-        <div className="mt-4 text-sm text-center text-gray-600">
-          <button
-            className="text-blue-600 hover:underline"
-            onClick={() => {
-              setMode((m) => (m === "login" ? "register" : "login"));
-              setError("");
-            }}
-          >
-            {mode === "login"
-              ? "Pas de compte ? S'inscrire"
-              : "Déjà inscrit ? Se connecter"}
-          </button>
-        </div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all scale-100">
         
-        <button onClick={onClose} className="mt-2 w-full text-xs text-gray-400 hover:text-gray-600">
-          Fermer
-        </button>
+        {/* Header */}
+        <div className="bg-gradient-to-r from-blue-600 to-blue-800 p-6 text-white text-center">
+          <h2 className="text-3xl font-bold">{isRegister ? "Créer un compte" : "Bienvenue"}</h2>
+          <p className="opacity-90 mt-1">{isRegister ? "Rejoignez la communauté TechShop" : "Connectez-vous à votre espace"}</p>
+        </div>
+
+        {/* Form */}
+        <div className="p-8">
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 text-red-600 text-sm rounded-lg border border-red-100 flex items-center">
+              ⚠️ {error}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <input
+                type="email"
+                required
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                placeholder="votre@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Mot de passe</label>
+              <input
+                type="password"
+                required
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
+
+            {/* CHAMPS SUPPLÉMENTAIRES POUR L'INSCRIPTION */}
+            {isRegister && (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Âge</label>
+                  <input
+                    type="number"
+                    min="10"
+                    max="99"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition"
+                    placeholder="25"
+                    value={age}
+                    onChange={(e) => setAge(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Genre</label>
+                  <select
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition bg-white"
+                    value={gender}
+                    onChange={(e) => setGender(e.target.value)}
+                  >
+                    <option value="Mixte">Mixte</option>
+                    <option value="Homme">Homme</option>
+                    <option value="Femme">Femme</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5"
+            >
+              {isRegister ? "S'inscrire" : "Se connecter"}
+            </button>
+          </form>
+
+          <div className="mt-6 text-center">
+            <p className="text-sm text-gray-600">
+              {isRegister ? "Déjà un compte ?" : "Pas encore de compte ?"}
+              <button
+                onClick={() => { setIsRegister(!isRegister); setError(""); }}
+                className="ml-2 text-blue-600 font-bold hover:underline focus:outline-none"
+              >
+                {isRegister ? "Se connecter" : "S'inscrire"}
+              </button>
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );

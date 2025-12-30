@@ -1,39 +1,48 @@
-// URLs relatives pour nginx
-const API_GATEWAY = "";
+// --- CONFIGURATION DES PORTS (Via Nginx) ---
+const API_PRODUCT     = "/api/products";      // Catalogue
+const API_USER        = "/api/users";         // Auth (Login/Register)
+const API_INTERACTION = "/api/interactions";  // Panier & Favoris (Nouveau Service)
 
+// --- PRODUITS ---
 export async function fetchProducts() {
-  const res = await fetch(`${API_GATEWAY}/api/products`);
+  const res = await fetch(API_PRODUCT);
   if (!res.ok) throw new Error("Erreur produits");
   return res.json();
 }
 
+// --- AUTHENTIFICATION (Service User) ---
 export async function registerUser(payload) {
-  const res = await fetch(`${API_GATEWAY}/api/users/register`, {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+  const res = await fetch(`${API_USER}/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
   });
   if (!res.ok) throw new Error("Erreur inscription");
   return res.json();
 }
 
 export async function loginUser(payload) {
-  const res = await fetch(`${API_GATEWAY}/api/users/login`, {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+  const res = await fetch(`${API_USER}/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
   });
   if (!res.ok) throw new Error("Erreur connexion");
   return res.json();
 }
 
+// --- PANIER (Service Interaction) ---
+// CORRECTION : On pointe vers API_INTERACTION
 export async function getCart(userId) {
     try {
-        const res = await fetch(`${API_GATEWAY}/api/users/${userId}/cart`);
+        const res = await fetch(`${API_INTERACTION}/cart/${userId}`);
         if (!res.ok) return [];
         return await res.json();
     } catch (e) { return []; }
 }
 
-// --- CORRECTION MAJEURE ICI ---
 export async function postCart(userId, product) {
-  // On s'assure de récupérer un ID valide (soit id, soit product_id)
+  // Sécurisation de l'ID produit
   const pid = product.id || product.product_id;
   
   if (!pid) {
@@ -48,7 +57,8 @@ export async function postCart(userId, product) {
       image: product.image 
   };
 
-  const res = await fetch(`${API_GATEWAY}/api/users/${userId}/cart`, {
+  // CORRECTION : Envoi vers Interaction Service
+  const res = await fetch(`${API_INTERACTION}/cart/${userId}`, {
     method: "POST", 
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -62,26 +72,34 @@ export async function postCart(userId, product) {
 }
 
 export async function deleteFromCart(userId, productId) {
-    await fetch(`${API_GATEWAY}/api/users/${userId}/cart/${productId}`, { method: "DELETE" });
+    await fetch(`${API_INTERACTION}/cart/${userId}/${productId}`, { method: "DELETE" });
 }
 
+// --- FAVORIS (Service Interaction) ---
+// CORRECTION : On pointe vers API_INTERACTION
 export async function getWishlist(userId) {
     try {
-        const res = await fetch(`${API_GATEWAY}/api/users/${userId}/wishlist`);
+        const res = await fetch(`${API_INTERACTION}/wishlist/${userId}`);
         if (!res.ok) return [];
         return await res.json();
     } catch (e) { return []; }
 }
 
 export async function postWishlist(userId, product) {
-  const pid = product.id || product.product_id; // Sécurisation aussi pour les favoris
-  const res = await fetch(`${API_GATEWAY}/api/users/${userId}/wishlist`, {
-    method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ product_id: pid, name: product.name, price: product.price, image: product.image }),
+  const pid = product.id || product.product_id;
+  const res = await fetch(`${API_INTERACTION}/wishlist/${userId}`, {
+    method: "POST", 
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ 
+        product_id: pid, 
+        name: product.name, 
+        price: product.price, 
+        image: product.image 
+    }),
   });
   return res.json();
 }
 
 export async function deleteFromWishlist(userId, productId) {
-    await fetch(`${API_GATEWAY}/api/users/${userId}/wishlist/${productId}`, { method: "DELETE" });
+    await fetch(`${API_INTERACTION}/wishlist/${userId}/${productId}`, { method: "DELETE" });
 }

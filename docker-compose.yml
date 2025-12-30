@@ -1,7 +1,5 @@
-version: '3.8'
-
 services:
-  # --- API GATEWAY (Le Chef d'orchestre) ---
+  # --- API GATEWAY (Le Chef d'orchestre - Port 80 - Magasin) ---
   gateway:
     image: nginx:alpine
     volumes:
@@ -9,9 +7,7 @@ services:
     ports:
       - "80:80"
     depends_on:
-      - front_user
       - front_product
-      - front_ai
       - user_service
       - product_service
       - recommendation_service
@@ -22,9 +18,9 @@ services:
   user_service:
     build: ./user_service
     volumes:
-      - ./user_service/instance:/app/instance
-    ports:           # <--- AJOUTE ÇA
-      - "5003:5003"  
+      - ./user_service/data:/app/data
+    ports:
+      - "5003:5003"
     
   front_user:
     build: ./user_service/frontend
@@ -32,26 +28,45 @@ services:
       - REACT_APP_API_URL=/api/users
 
   # ==============================================
-  # 🛒 DOMAINE PRODUIT
+  # 🛒 DOMAINE PRODUIT (Le Magasin Principal)
   # ==============================================
   product_service:
     build: ./product_service
+    ports:
+      - "5002:5002" 
+    volumes:
+      - ./product_service:/app
 
   front_product:
     build: ./product_service/frontend
     environment:
       - REACT_APP_API_URL=/api/products
 
+  interaction_service:  
+    build: ./interaction_service
+    ports:
+      - "5004:5004"
+    volumes:
+      - ./interaction_service/data:/app/data    
+
   # ==============================================
-  # 🧠 DOMAINE INTELLIGENCE
+  # 🧠 DOMAINE INTELLIGENCE (Cloud AI)
   # ==============================================
   recommendation_service:
     build: ./recommendation_service
+    ports:
+      - "5001:5001" # Important pour que le Dashboard puisse lui parler
 
+  # LE DASHBOARD ADMIN (Accessible sur http://localhost:8081)
   front_ai:
-    build: ./recommendation_service/frontend
+    # Remplacez './front_ai' par le vrai chemin actuel :
+    build: ./recommendation_service/frontend 
+    ports:
+      - "8081:80"
     environment:
-      - REACT_APP_API_URL=/api/ai
+      - REACT_APP_API_URL=http://localhost/api/ai
+    depends_on:
+      - recommendation_service
 
   # ==============================================
   # 🚀 CONTINUOUS DELIVERY AGENT
@@ -67,13 +82,11 @@ services:
   # ==============================================
   # 📊 MONITORING STACK
   # ==============================================
-  
-  # 1. L'Espion (Collecte les métriques)
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:latest
     container_name: cadvisor
     ports:
-      - "8081:8080"
+      - "8082:8080" # J'ai changé le port 8081->8082 car 8081 est pris par front_ai
     volumes:
       - /:/rootfs:ro
       - /var/run:/var/run:ro
@@ -83,7 +96,6 @@ services:
     devices:
       - /dev/kmsg
 
-  # 2. Le Cerveau (Stocke les données)
   prometheus:
     image: prom/prometheus:latest
     container_name: prometheus
@@ -94,7 +106,6 @@ services:
     depends_on:
       - cadvisor
 
-  # 3. L'Écran (Affiche les graphiques)
   grafana:
     image: grafana/grafana:latest
     container_name: grafana
@@ -112,6 +123,6 @@ networks:
   default:
     driver: bridge
 
-# --- VOLUMES (C'est ça qu'il manquait !) ---
+# --- VOLUMES ---
 volumes:
   grafana_data:

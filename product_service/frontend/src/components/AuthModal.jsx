@@ -8,12 +8,12 @@ export default function AuthModal({ open, onClose, onLoginSuccess }) {
   const [pass, setPass] = useState("");
   const [confirmPass, setConfirmPass] = useState("");
   
-  // --- NOUVEAUX CHAMPS POUR L'IA ---
-  const [age, setAge] = useState("25"); // Valeur par défaut
-  const [gender, setGender] = useState("Homme"); // Valeur par défaut
+  // --- CHAMPS POUR L'IA ---
+  const [age, setAge] = useState("25"); 
+  const [gender, setGender] = useState("Homme"); 
 
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false); // Pour éviter le double-clic
+  const [loading, setLoading] = useState(false); 
 
   if (!open) return null;
 
@@ -37,7 +37,6 @@ export default function AuthModal({ open, onClose, onLoginSuccess }) {
         data = await loginUser({ email, password: pass });
       } else {
         // Inscription AVEC données IA
-        // On s'assure que l'âge est bien un nombre (Int)
         data = await registerUser({ 
             email, 
             password: pass,
@@ -46,7 +45,15 @@ export default function AuthModal({ open, onClose, onLoginSuccess }) {
         });
       }
 
-      // Succès
+      // --- MODIFICATION ICI : LOGIQUE DE REDIRECTION ADMIN ---
+      // Si le backend nous dit que c'est un admin, on redirige vers le Dashboard
+      if (data.role === "admin") {
+          window.location.href = "http://localhost:8081";
+          return; // On arrête l'exécution ici pour laisser la page changer
+      }
+      // -------------------------------------------------------
+
+      // Succès Client (Comportement normal)
       onLoginSuccess(data); 
       onClose();
       

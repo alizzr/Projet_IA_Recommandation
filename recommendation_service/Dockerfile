@@ -10,4 +10,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # IMPORTANT : On génère le fichier CSV au démarrage du conteneur, puis on lance l'API
-CMD sh -c "python generate_data.py && python app.py"
+CMD ["python", "app.py"]

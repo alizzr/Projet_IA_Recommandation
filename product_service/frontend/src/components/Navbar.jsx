@@ -4,19 +4,19 @@ export default function Navbar({
     cartCount, 
     wishlistCount, 
     user, 
-    categories,      // Liste dynamique
-    onSearch,        // Fonction recherche
-    onCategoryClick, // Filtre catégorie
-    onSpecialFilter, // Filtre spéciaux
+    categories,      
+    onSearch,        
+    onCategoryClick, 
+    onSpecialFilter, 
     onOpenCart, 
     onOpenWishlist, 
-    onLogout, 
-    onLogin 
+    onLogout 
+    // onLogin n'est plus utilisé car on a un lien direct
 }) {
   const [searchTerm, setSearchTerm] = useState("");
 
   const handleSearchSubmit = (e) => {
-    e.preventDefault(); // Empêche le rechargement de page
+    e.preventDefault(); 
     onSearch(searchTerm);
   };
 
@@ -52,17 +52,30 @@ export default function Navbar({
 
         {/* ACTIONS */}
         <div className="flex items-center gap-4 text-sm">
-          <div onClick={user ? null : onLogin} className="flex flex-col leading-tight cursor-pointer hover:border hover:border-white p-1 rounded">
-            <span className="text-xs text-gray-300">Bonjour, {user ? user.email.split('@')[0] : "Identifiez-vous"}</span>
-            <span className="font-bold">{user ? "Compte" : "Se connecter"}</span>
-            {user && <span onClick={onLogout} className="text-[10px] text-red-300 hover:text-red-100">Sortir</span>}
-          </div>
+          
+          {/* ZONE COMPTE : Logique conditionnelle PROPRE */}
+          {user ? (
+              // CAS 1 : CONNECTÉ (Div interactif avec Logout)
+              <div className="flex flex-col leading-tight cursor-pointer hover:border hover:border-white p-1 rounded">
+                <span className="text-xs text-gray-300">Bonjour, {user.email.split('@')[0]}</span>
+                <span className="font-bold">Mon Compte</span>
+                <span onClick={onLogout} className="text-[10px] text-red-300 hover:text-red-100 hover:underline">Déconnexion</span>
+              </div>
+          ) : (
+              // CAS 2 : INVITÉ (Vrai lien HTML vers /auth)
+              <a href="/auth" className="flex flex-col leading-tight cursor-pointer hover:border hover:border-white p-1 rounded text-white no-underline">
+                <span className="text-xs text-gray-300">Bonjour, Identifiez-vous</span>
+                <span className="font-bold">Se connecter</span>
+              </a>
+          )}
 
+          {/* FAVORIS */}
           <div onClick={onOpenWishlist} className="cursor-pointer hover:border hover:border-white p-2 rounded text-center">
-             <span className="text-xs font-bold block">Favoris</span>
-             <span className="font-bold">{wishlistCount}</span>
+              <span className="text-xs font-bold block">Favoris</span>
+              <span className="font-bold">{wishlistCount}</span>
           </div>
 
+          {/* PANIER */}
           <div onClick={onOpenCart} className="flex items-end gap-1 cursor-pointer hover:border hover:border-white p-2 rounded">
             <div className="relative">
                <span className="text-3xl">🛒</span>

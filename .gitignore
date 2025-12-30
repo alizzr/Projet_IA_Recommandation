@@ -1,22 +1,23 @@
-# Python
+# --- Python ---
 __pycache__/
-*.pyc
-instance/
-*.db
+*.py[cod]
+*$py.class
+venv/
+.env
 
-# Node
+# --- Node.js / React ---
 node_modules/
-npm-debug.log
-yarn-debug.log
-coverage/
+build/
+dist/
+.npm
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-# Jest
-coverage/
-.junit/
+# --- Docker & System ---
+.DS_Store
+Thumbs.db
 
-# Pytest
-htmlcov/
-.coverage
-
-# VSCode
+# --- IDE ---
 .vscode/
+.idea/

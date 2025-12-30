@@ -1,0 +1,77 @@
+version: '3.8'
+
+services:
+  # --- LE CHEF D'ORCHESTRE (GATEWAY) ---
+  # C'est lui qui prend le port 80 public
+  gateway:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      # On utilise votre configuration Nginx locale pour router le trafic
+      - ./api_gateway/nginx.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - front_store
+      - product_service
+      - recommendation_service
+      - user_service
+    networks:
+      - app_network
+
+  # --- BACKENDS (Images Cloud) ---
+  user_service:
+    image: alizr7/techshop-user:latest
+    environment:
+      - FLASK_ENV=production
+    networks:
+      - app_network
+
+  product_service:
+    image: alizr7/techshop-product:latest
+    volumes:
+      - ./product_service/products.json:/app/products.json
+    networks:
+      - app_network
+
+  recommendation_service:
+    image: alizr7/techshop-reco:latest
+    environment:
+      - FLASK_ENV=production
+    networks:
+      - app_network
+
+  interaction_service:
+    build: ./interaction_service
+    networks:
+      - app_network
+
+  # --- FRONTENDS (Internes uniquement) ---
+  front_store:
+    image: alizr7/techshop-store:latest
+    # Pas de "ports" ici, car on ne veut pas y accéder directement
+    networks:
+      - app_network
+
+  front_admin:
+    image: alizr7/techshop-admin:latest
+    ports:
+      - "8081:80" # L'admin garde son port à part pour l'instant
+    networks:
+      - app_network
+
+  # --- MONITORING ---
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    ports:
+      - "8082:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    networks:
+      - app_network
+
+networks:
+  app_network:
+    driver: bridge
