@@ -1,5 +1,4 @@
 flask
-flask-sqlalchemy
-flask-cors
-flask-migrate
-requests
+flask_sqlalchemy
+flask_cors
+psycopg2-binary

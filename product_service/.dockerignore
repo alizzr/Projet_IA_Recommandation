@@ -1,19 +1,2 @@
-# --- Ignorer les dépendances lourdes (Docker les réinstalle) ---
-node_modules/
-dist/
-build/
-venv/
-.venv/
-__pycache__/
-*.pyc
-
-# --- Ignorer Git ---
-.git/
-.gitignore
-
-# --- Ignorer les fichiers systèmes ---
-.DS_Store
-Thumbs.db
-
-# --- Ignorer les fichiers d'environnement locaux (sécurité) ---
-.env
+node_modules
+npm-debug.log

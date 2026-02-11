@@ -1,101 +1,182 @@
 const express = require("express");
-const fs = require("fs");
 const cors = require("cors");
+const fs = require("fs");
 const path = require("path");
+const db = require("./db");
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Chemin absolu sécurisé vers le fichier JSON
-const DATA_FILE = path.join(__dirname, "products.json");
+const PRODUCTS_FILE = path.join(__dirname, "products.json");
 
-// --- CHARGEMENT DES PRODUITS ---
-let products = [];
-try {
-    if (fs.existsSync(DATA_FILE)) {
-        const fileContent = fs.readFileSync(DATA_FILE, "utf8");
-        products = JSON.parse(fileContent);
-        console.log(`✅ Catalogue chargé : ${products.length} produits.`);
-    } else {
-        console.log("⚠️ Fichier products.json introuvable, démarrage vide.");
-    }
-} catch (err) {
-    console.error("❌ Erreur critique chargement JSON :", err);
-}
-
-// --- FONCTION DE SAUVEGARDE ---
-function saveProducts() {
+// --- INITIALISATION BDD ---
+async function initDB() {
     try {
-        fs.writeFileSync(DATA_FILE, JSON.stringify(products, null, 2));
-        console.log("💾 Sauvegarde sur disque effectuée.");
-    } catch (e) {
-        console.error("❌ Erreur lors de l'écriture sur le disque :", e);
+        // 1. Création de la table
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS products (
+                id SERIAL PRIMARY KEY,
+                product_id INTEGER UNIQUE,
+                name VARCHAR(255) NOT NULL,
+                category VARCHAR(100),
+                price DECIMAL(10,2),
+                brand VARCHAR(100),
+                usage VARCHAR(100),
+                design_rating INTEGER,
+                image_url TEXT,
+                fallback_url TEXT
+            );
+        `);
+        console.log("✅ Table 'products' vérifiée/créée.");
+
+        // 2. Seeding (Si vide)
+        const { rows } = await db.query('SELECT COUNT(*) FROM products');
+        const count = parseInt(rows[0].count);
+
+        if (count === 0 && fs.existsSync(PRODUCTS_FILE)) {
+            console.log("⚠️ Table vide. Importation automatique depuis products.json...");
+            const rawData = fs.readFileSync(PRODUCTS_FILE);
+            const products = JSON.parse(rawData);
+
+            for (const p of products) {
+                await db.query(`
+                    INSERT INTO products (product_id, name, category, price, brand, usage, design_rating, image_url, fallback_url)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                `, [
+                    p.product_id, p.name, p.category, p.price, p.brand, p.usage, p.design_rating, p.image_url, p.fallback_url
+                ]);
+            }
+            console.log(`🚀 ${products.length} produits importés avec succès !`);
+        } else {
+            console.log(`info : ${count} produits en base.`);
+        }
+
+    } catch (err) {
+        console.error("❌ Erreur initDB:", err);
     }
 }
+
+// Lancement init au démarrage
+initDB();
 
 // --- ROUTE 1 : LISTE (GET) ---
-app.get("/products", (req, res) => {
-    let results = products;
+app.get("/products", async (req, res) => {
+    try {
+        let query = 'SELECT * FROM products';
+        let params = [];
 
-    // Filtre par catégorie si demandé
-    if (req.query.category) {
-        results = results.filter(
-            p => p.category && p.category.toLowerCase() === req.query.category.toLowerCase()
-        );
+        if (req.query.category) {
+            query += ' WHERE LOWER(category) = LOWER($1)';
+            params.push(req.query.category);
+        }
+
+        const { rows } = await db.query(query, params);
+        res.json(rows);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Erreur serveur" });
     }
-    res.json(results);
 });
 
 // --- ROUTE 2 : DÉTAIL (GET ONE) ---
-app.get("/products/:id", (req, res) => {
+app.get("/products/:id", async (req, res) => {
     const id = parseInt(req.params.id);
-    const product = products.find(p => (p.id === id || p.product_id === id));
-    if (product) res.json(product);
-    else res.status(404).json({ message: "Introuvable" });
+    try {
+        // Supporte id interne (PK) ou product_id (Legacy)
+        const { rows } = await db.query(
+            'SELECT * FROM products WHERE id = $1 OR product_id = $1',
+            [id]
+        );
+
+        if (rows.length > 0) res.json(rows[0]);
+        else res.status(404).json({ message: "Produit introuvable" });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Erreur serveur" });
+    }
 });
 
 // --- ROUTE 3 : AJOUT (POST) ---
-// CORRECTION : On écoute sur "/products" (pas /admin) pour matcher le React
-app.post("/products", (req, res) => {
-    
-    // 1. Calculer le prochain ID (Max + 1)
-    let maxId = 0;
-    products.forEach(p => {
-        const pid = p.id || p.product_id || 0;
-        if (pid > maxId) maxId = pid;
-    });
-    const newId = maxId + 1;
+app.post("/products", async (req, res) => {
+    const { product_id, name, category, price, brand, usage, design_rating, image_url, fallback_url } = req.body;
 
-    // 2. Créer le produit
-    const newProduct = {
-        id: newId,             // Standard React
-        product_id: newId,     // Compatibilité ancienne
-        ...req.body
-    };
+    try {
+        // On génère un product_id si absent (Max + 1)
+        let pid = product_id;
+        if (!pid) {
+            const { rows } = await db.query('SELECT MAX(product_id) as max_id FROM products');
+            pid = (rows[0].max_id || 2000) + 1;
+        }
 
-    // 3. Ajouter et Sauvegarder
-    products.push(newProduct);
-    saveProducts();
+        const { rows } = await db.query(`
+            INSERT INTO products (product_id, name, category, price, brand, usage, design_rating, image_url, fallback_url)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            RETURNING *
+        `, [pid, name, category, price, brand, usage, design_rating, image_url, fallback_url]);
 
-    console.log(`➕ Produit ajouté : ${newProduct.name} (ID: ${newId})`);
-    res.status(201).json(newProduct);
+        console.log(`➕ Produit ajouté : ${name} (ID: ${pid})`);
+        res.status(201).json(rows[0]);
+
+    } catch (err) {
+        console.error("❌ Erreur ajout:", err);
+        res.status(500).json({ error: "Erreur lors de l'ajout" });
+    }
 });
 
 // --- ROUTE 4 : SUPPRESSION (DELETE) ---
-app.delete("/products/:id", (req, res) => {
+app.delete("/products/:id", async (req, res) => {
     const id = parseInt(req.params.id);
-    const initialLength = products.length;
+    try {
+        const { rowCount } = await db.query(
+            'DELETE FROM products WHERE id = $1 OR product_id = $1',
+            [id]
+        );
 
-    // On garde tout ce qui n'est PAS cet ID
-    products = products.filter(p => (p.id !== id && p.product_id !== id));
+        if (rowCount > 0) {
+            console.log(`🗑️ Produit supprimé (ID: ${id})`);
+            res.json({ message: "Produit supprimé" });
+        } else {
+            res.status(404).json({ message: "Produit non trouvé" });
+        }
+    } catch (err) {
+        console.error("❌ Erreur suppression:", err);
+        res.status(500).json({ error: "Erreur serveur" });
+    }
+});
 
-    if (products.length < initialLength) {
-        saveProducts(); // Sauvegarde la suppression
-        console.log(`🗑️ Produit supprimé (ID: ${id})`);
-        res.json({ message: "Produit supprimé avec succès" });
-    } else {
-        res.status(404).json({ message: "Produit non trouvé" });
+// --- ROUTE 5 : MODIFICATION (PUT) ---
+app.put("/products/:id", async (req, res) => {
+    const id = parseInt(req.params.id);
+    const { name, category, price, brand, usage, design_rating, image_url, fallback_url } = req.body;
+
+    // Pour simplifier l'exemple, on met tout à jour. 
+    // En prod, il faudrait construire la requête dynamiquement selon les champs présents.
+    try {
+        const { rows } = await db.query(`
+            UPDATE products 
+            SET name = COALESCE($1, name),
+                category = COALESCE($2, category),
+                price = COALESCE($3, price),
+                brand = COALESCE($4, brand),
+                usage = COALESCE($5, usage),
+                design_rating = COALESCE($6, design_rating),
+                image_url = COALESCE($7, image_url),
+                fallback_url = COALESCE($8, fallback_url)
+            WHERE id = $9 OR product_id = $9
+            RETURNING *
+        `, [name, category, price, brand, usage, design_rating, image_url, fallback_url, id]);
+
+        if (rows.length > 0) {
+            console.log(`✏️ Produit modifié (ID: ${id})`);
+            res.json(rows[0]);
+        } else {
+            res.status(404).json({ message: "Produit introuvable" });
+        }
+
+    } catch (err) {
+        console.error("❌ Erreur modif:", err);
+        res.status(500).json({ error: "Erreur serveur" });
     }
 });
 

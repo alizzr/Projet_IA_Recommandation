@@ -1,6 +1,7 @@
 flask
-flask-cors
+flask_cors
 pandas
-scikit-learn
-numpy
 xgboost
+scikit-learn
+psycopg2-binary
+SQLAlchemy

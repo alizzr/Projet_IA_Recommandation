@@ -3,43 +3,61 @@ from flask_cors import CORS
 import pandas as pd
 import os
 import pickle
-import xgboost as xgb
+import xgboost
 import numpy as np
 import random
 
 app = Flask(__name__)
 CORS(app)
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-JSON_PATH = os.path.join(BASE_DIR, 'products.json')
-MODEL_PATH = os.path.join(BASE_DIR, 'modele_final_70plus.pkl')
+from sqlalchemy import create_engine
 
+# DB INFO
+DB_USER = os.environ.get('POSTGRES_USER', 'postgres')
+DB_PWD = os.environ.get('POSTGRES_PASSWORD', 'postgres')
+DB_HOST = os.environ.get('DB_HOST', 'postgres')
+DB_PORT = os.environ.get('DB_PORT', '5432')
+DB_NAME = os.environ.get('POSTGRES_DB', 'techshop_db')
+
+DATABASE_URI = f"postgresql://{DB_USER}:{DB_PWD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+
+MODEL_PATH = os.path.join(os.path.dirname(__file__), 'modele_final_70plus.pkl')
+
+# Globals initialisés par init_app()
 df_products = pd.DataFrame()
 model = None
 
 def init_app():
     global df_products, model
-    if os.path.exists(JSON_PATH):
-        try:
-            df_products = pd.read_json(JSON_PATH)
-            df_products.rename(columns={'product_id': 'id', 'image_url': 'image'}, inplace=True)
-            if 'price' not in df_products.columns: df_products['price'] = 0.0
-            if 'category' not in df_products.columns: df_products['category'] = 'Divers'
-            if 'rating' not in df_products.columns: df_products['rating'] = 4.0
-            df_products['price'] = pd.to_numeric(df_products['price'], errors='coerce').fillna(0)
-            df_products['rating'] = pd.to_numeric(df_products['rating'], errors='coerce').fillna(4.0)
-            print(f"✅ Catalogue chargé : {len(df_products)} produits.")
-        except Exception as e:
-            print(f"❌ Erreur JSON : {e}")
+    
+    # 1. Chargement Produits depuis DB
+    try:
+        engine = create_engine(DATABASE_URI)
+        query = "SELECT product_id as id, name, category, price, design_rating as rating, image_url as image FROM products"
+        df_products = pd.read_sql(query, engine)
+        
+        # Gestion des valeurs par défaut
+        if 'price' not in df_products.columns: df_products['price'] = 0.0
+        if 'category' not in df_products.columns: df_products['category'] = 'Divers'
+        if 'rating' not in df_products.columns: df_products['rating'] = 4.0
+        
+        df_products['price'] = pd.to_numeric(df_products['price'], errors='coerce').fillna(0)
+        df_products['rating'] = pd.to_numeric(df_products['rating'], errors='coerce').fillna(4.0)
 
+        print(f"✅ Catalogue chargé depuis SQL : {len(df_products)} produits.")
+    except Exception as e:
+        print(f"❌ Erreur SQL : {e}")
+        # Fallback JSON si besoin ou DataFrame vide
+        df_products = pd.DataFrame()
+
+    # 2. Chargement Modèle (inchangé)
     if os.path.exists(MODEL_PATH):
         try:
             with open(MODEL_PATH, 'rb') as f:
                 model = pickle.load(f)
             print("✅ Modèle IA chargé.")
-        except: model = None
-
-init_app()
+        except Exception:
+            model = None
 
 # --- FONCTIONS ---
 def get_boosted_categories(interactions):
@@ -49,7 +67,8 @@ def get_boosted_categories(interactions):
         for item in items:
             p = df_products[df_products['id'] == item.get('product_id')]
             if not p.empty: loved.add(p.iloc[0]['category'])
-    except: pass
+    except Exception:
+        pass
     return loved
 
 def predict_interest(user_profile, candidates, interactions):
@@ -68,7 +87,8 @@ def predict_interest(user_profile, candidates, interactions):
         candidates = candidates.copy()
         candidates['ai_score'] = final_scores
         return candidates.sort_values(by='ai_score', ascending=False)
-    except: return candidates
+    except Exception:
+        return candidates
 
 @app.route('/get_amazon_blocks', methods=['POST'])
 def get_amazon_blocks():
@@ -154,5 +174,8 @@ def get_stats():
         "api_version": "v2.1 Hybrid"
     })    
 
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5001)
+    init_app()
+    port = int(os.environ.get('PORT_RECOMMENDATION_SERVICE', 5001))
+    app.run(host='0.0.0.0', port=port)

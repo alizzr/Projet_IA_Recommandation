@@ -5,7 +5,7 @@ WORKDIR /app
 # Copier juste package.json et package-lock.json
 COPY package*.json ./
 
-RUN npm install --production
+RUN npm install
 
 # Copier le reste du projet
 COPY . .

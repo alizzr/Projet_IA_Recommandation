@@ -1,5 +1,5 @@
 // On pointe vers le Gateway Nginx
-const API_GATEWAY = "http://localhost"; 
+const API_GATEWAY = process.env.REACT_APP_API_URL || "";
 
 // --- Service IA (via /api/ai/) ---
 

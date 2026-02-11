@@ -8,6 +8,7 @@ import os
 app = Flask(__name__)
 Swagger(app)
 CORS(app)
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'fallback_secret_key')
 
 # --- PERSISTANCE DES DONNÉES ---
 basedir = os.path.abspath(os.path.dirname(__file__))
@@ -15,7 +16,13 @@ data_dir = os.path.join(basedir, 'data')
 os.makedirs(data_dir, exist_ok=True)
 
 # Configuration DB
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(data_dir, 'users.db')
+DB_USER = os.environ.get('POSTGRES_USER', 'postgres')
+DB_PWD = os.environ.get('POSTGRES_PASSWORD', 'postgres')
+DB_HOST = os.environ.get('DB_HOST', 'postgres')
+DB_PORT = os.environ.get('DB_PORT', '5432')
+DB_NAME = os.environ.get('POSTGRES_DB', 'techshop_db')
+
+app.config['SQLALCHEMY_DATABASE_URI'] = f"postgresql://{DB_USER}:{DB_PWD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
@@ -74,19 +81,19 @@ def login():
 
     user = User.query.filter_by(email=email).first()
 
-    # CORRECTION : On compare le mot de passe brut (comme dans ton register)
-    # Si plus tard tu veux du hash, il faudra changer register ET login
     if user and user.password == password:
         
         # LOGIQUE INTELLIGENTE : Conversion de la DB vers le Frontend
-        # La DB connait "is_admin" (Booléen), le Frontend veut un "role" (Texte)
         user_role = "admin" if user.is_admin else "customer"
 
         return jsonify({
             "message": "Login successful",
-            "user_id": user.id,
-            "email": user.email, # On renvoie l'email car 'name' n'existe pas dans ta DB
-            "role": user_role    # <--- C'EST CA QUI ACTIVE LA REDIRECTION
+            "id": user.id,           # <--- INDISPENSABLE : Le frontend attend "id" (pas user_id)
+            "user_id": user.id,      # (On garde aussi celui-là pour la compatibilité)
+            "email": user.email,
+            "role": user_role,
+            "age": user.age,         # <--- AJOUTÉ POUR L'IA
+            "gender": user.gender    # <--- AJOUTÉ POUR L'IA
         }), 200
     
     return jsonify({"error": "Invalid credentials"}), 401
@@ -121,5 +128,7 @@ def delete_user(id):
         return jsonify({"message": "Utilisateur supprimé"})
     return jsonify({"message": "Introuvable"}), 404
 
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5003)
+    port = int(os.environ.get('PORT_USER_SERVICE', 5003))
+    app.run(host='0.0.0.0', port=port)

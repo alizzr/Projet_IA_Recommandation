@@ -1,5 +1,5 @@
 // On pointe vers le Gateway
-const API_GATEWAY = "http://localhost"; 
+const API_GATEWAY = process.env.REACT_APP_API_URL || "";
 
 // --- AUTH ---
 export async function registerUser(payload) {
@@ -24,11 +24,11 @@ export async function loginUser(payload) {
 
 // --- PANIER (DB) ---
 export async function getCart(userId) {
-    try {
-        const res = await fetch(`${API_GATEWAY}/api/users/${userId}/cart`);
-        if (!res.ok) return [];
-        return await res.json();
-    } catch (e) { console.error(e); return []; }
+  try {
+    const res = await fetch(`${API_GATEWAY}/api/users/${userId}/cart`);
+    if (!res.ok) return [];
+    return await res.json();
+  } catch (e) { console.error(e); return []; }
 }
 
 export async function postCart(userId, product) {
@@ -36,10 +36,10 @@ export async function postCart(userId, product) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-        product_id: product.id || product.product_id,
-        name: product.name,
-        price: product.price,
-        image: product.image
+      product_id: product.id || product.product_id,
+      name: product.name,
+      price: product.price,
+      image: product.image
     }),
   });
   if (!res.ok) throw new Error("Erreur ajout panier");
@@ -47,20 +47,20 @@ export async function postCart(userId, product) {
 }
 
 export async function deleteFromCart(userId, productId) {
-    const res = await fetch(`${API_GATEWAY}/api/users/${userId}/cart/${productId}`, {
-        method: "DELETE"
-    });
-    if (!res.ok) throw new Error("Erreur suppression panier");
-    return res.json();
+  const res = await fetch(`${API_GATEWAY}/api/users/${userId}/cart/${productId}`, {
+    method: "DELETE"
+  });
+  if (!res.ok) throw new Error("Erreur suppression panier");
+  return res.json();
 }
 
 // --- FAVORIS / WISHLIST (DB) ---
 export async function getWishlist(userId) {
-    try {
-        const res = await fetch(`${API_GATEWAY}/api/users/${userId}/wishlist`);
-        if (!res.ok) return [];
-        return await res.json();
-    } catch (e) { console.error(e); return []; }
+  try {
+    const res = await fetch(`${API_GATEWAY}/api/users/${userId}/wishlist`);
+    if (!res.ok) return [];
+    return await res.json();
+  } catch (e) { console.error(e); return []; }
 }
 
 export async function postWishlist(userId, product) {
@@ -68,10 +68,10 @@ export async function postWishlist(userId, product) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-        product_id: product.id || product.product_id,
-        name: product.name,
-        price: product.price,
-        image: product.image
+      product_id: product.id || product.product_id,
+      name: product.name,
+      price: product.price,
+      image: product.image
     }),
   });
   if (!res.ok) throw new Error("Erreur ajout favoris");
@@ -79,11 +79,11 @@ export async function postWishlist(userId, product) {
 }
 
 export async function deleteFromWishlist(userId, productId) {
-    const res = await fetch(`${API_GATEWAY}/api/users/${userId}/wishlist/${productId}`, {
-        method: "DELETE"
-    });
-    if (!res.ok) throw new Error("Erreur suppression favoris");
-    return res.json();
+  const res = await fetch(`${API_GATEWAY}/api/users/${userId}/wishlist/${productId}`, {
+    method: "DELETE"
+  });
+  if (!res.ok) throw new Error("Erreur suppression favoris");
+  return res.json();
 }
 
 // --- COMMANDES ---

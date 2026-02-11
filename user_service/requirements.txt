@@ -4,3 +4,4 @@ flask_cors
 pytest
 Flask-Migrate
 flasgger
+psycopg2-binary

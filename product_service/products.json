@@ -3298,5 +3298,29 @@
     "design_rating": 3,
     "image_url": "https://images.unsplash.com/photo-1608354580875-30bd4168b351?auto=format&fit=crop&w=500&q=80",
     "fallback_url": "https://via.placeholder.com/400x300?text=Image+Non+Disponible"
+  },
+  {
+    "id": 2301,
+    "product_id": 2001,
+    "name": "Bosch Lamp Model 990",
+    "category": "Home",
+    "price": 221.15,
+    "brand": "Bosch",
+    "usage": "Leisure",
+    "design_rating": 3,
+    "image_url": "https://images.unsplash.com/photo-1507473883581-209633781b0b?auto=format&fit=crop&w=500&q=80",
+    "fallback_url": "https://via.placeholder.com/400x300?text=Image+Non+Disponible"
+  },
+  {
+    "id": 2302,
+    "product_id": 2001,
+    "name": "Bosch Lamp Model 990",
+    "category": "Home",
+    "price": 221.02,
+    "brand": "Bosch22",
+    "usage": "Leisure",
+    "design_rating": 3,
+    "image_url": "https://images.unsplash.com/photo-1507473883581-209633781b0b?auto=format&fit=crop&w=500&q=80",
+    "fallback_url": "https://via.placeholder.com/400x300?text=Image+Non+Disponible"
   }
 ]
